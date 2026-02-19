@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoliPost Tracker Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
+<link rel="stylesheet" href="static/style.css">
+</head>
+
+<body>
+
+<!-- ── LOADING OVERLAY ───────────────────────────────────────────────── -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Loading intelligence data…</div>
+</div>
+
+<!-- ── TOAST ─────────────────────────────────────────────────────────── -->
+<div id="toast"><span id="toast-icon">✓</span><span id="toast-msg"></span></div>
+
+<!-- ── SIDEBAR ────────────────────────────────────────────────────────── -->
+<nav class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">📡</div>
+    <span>PoliPost-Tracker</span>
+  </div>
+
+  <div class="nav-section">Navigation</div>
+  <a href="#overview"   class="nav-item active" onclick="scrollTo('#overview')">
+    <span class="nav-icon">📊</span> Overview
+  </a>
+  <a href="#trends"     class="nav-item" onclick="scrollTo('#trends')">
+    <span class="nav-icon">📈</span> Trends
+  </a>
+  <a href="#platforms"  class="nav-item" onclick="scrollTo('#platforms')">
+    <span class="nav-icon">🌐</span> Platforms
+  </a>
+  <a href="#keywords"   class="nav-item" onclick="scrollTo('#keywords')">
+    <span class="nav-icon">🔑</span> Keywords
+  </a>
+  <a href="#articles"   class="nav-item" onclick="scrollTo('#articles')">
+    <span class="nav-icon">📰</span> Articles
+  </a>
+
+  <div class="nav-section">Keywords Tracked</div>
+  {% for kw in keywords %}
+  <div style="padding: 5px 12px; font-size: 11px; color: var(--muted); font-family: var(--font-mono);">
+    · {{ kw }}
+  </div>
+  {% endfor %}
+
+  <div class="sidebar-footer">
+    <button class="fetch-btn" id="fetch-btn" onclick="triggerFetch()">
+      <span>⟳</span> Fetch Now
+    </button>
+  </div>
+</nav>
+
+<!-- ── MAIN CONTENT ───────────────────────────────────────────────────── -->
+<main class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div>
+      <h1 class="page-title">PoliPost<span>-Tracker</span> Dashboard</h1>
+      <div style="font-size:12px; color:var(--muted); margin-top:4px; font-family:var(--font-mono);">
+        Political post Tracker — India
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="badge badge-live">● Live</span>
+      <div class="last-updated" id="last-updated">Loading…</div>
+    </div>
+  </div>
+
+  <!-- ── OVERVIEW ──────────────────────────────────────────────────── -->
+  <section id="overview">
+    <div class="section-title">Overview</div>
+
+    <!-- KPI CARDS -->
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card"><div class="kpi-icon">📰</div><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label">Total Articles</div></div>
+      <div class="kpi-card"><div class="kpi-icon">📅</div><div class="kpi-value" id="kpi-today">—</div><div class="kpi-label">Today</div></div>
+      <div class="kpi-card"><div class="kpi-icon">📆</div><div class="kpi-value" id="kpi-week">—</div><div class="kpi-label">This Week</div></div>
+      <div class="kpi-card"><div class="kpi-icon">🔑</div><div class="kpi-value" id="kpi-keywords">—</div><div class="kpi-label">Keywords</div></div>
+      <div class="kpi-card"><div class="kpi-icon">🌐</div><div class="kpi-value" id="kpi-platforms">—</div><div class="kpi-label">Platforms</div></div>
+      <div class="kpi-card"><div class="kpi-icon">📊</div><div class="kpi-value" id="kpi-avg">—</div><div class="kpi-label">Avg / Day</div></div>
+    </div>
+
+    <!-- NUMPY STATS PILLS -->
+    <div class="stats-row" id="stats-row" style="display:none">
+      <div class="stat-pill"><div class="stat-pill-val" id="stat-mean">—</div><div class="stat-pill-lbl">Mean/day</div></div>
+      <div class="stat-pill"><div class="stat-pill-val" id="stat-std">—</div><div class="stat-pill-lbl">Std Dev</div></div>
+      <div class="stat-pill"><div class="stat-pill-val" id="stat-median">—</div><div class="stat-pill-lbl">Median/day</div></div>
+      <div class="stat-pill"><div class="stat-pill-val" id="stat-max">—</div><div class="stat-pill-lbl">Max/day</div></div>
+      <div class="stat-pill"><div class="stat-pill-val" id="stat-p75">—</div><div class="stat-pill-lbl">P75</div></div>
+      <div class="stat-pill"><div class="stat-pill-val" id="stat-p90">—</div><div class="stat-pill-lbl">P90</div></div>
+    </div>
+  </section>
+
+  <!-- ── TRENDS ────────────────────────────────────────────────────── -->
+  <section id="trends" class="section">
+    <div class="section-title">Time Series Analysis</div>
+
+    <!-- MAIN TREND CHART with period tabs -->
+    <div class="chart-card" style="margin-bottom:16px;">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Post Volume Over Time</div>
+          <div class="chart-subtitle">Select period below</div>
+        </div>
+        <div class="tabs">
+          <button class="tab active" onclick="switchPeriod('daily',this)">Daily</button>
+          <button class="tab" onclick="switchPeriod('weekly',this)">Weekly</button>
+          <button class="tab" onclick="switchPeriod('monthly',this)">Monthly</button>
+          <button class="tab" onclick="switchPeriod('yearly',this)">Yearly</button>
+        </div>
+      </div>
+      <div class="chart-container h300">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- KEYWORD TRENDS + HOURLY -->
+    <div class="charts-row charts-row-65">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Keyword Trends</div>
+            <div class="chart-subtitle">Per keyword over time</div>
+          </div>
+        </div>
+        <div class="chart-container h250">
+          <canvas id="kwTrendChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Hourly Distribution</div>
+            <div class="chart-subtitle">When articles are published</div>
+          </div>
+        </div>
+        <div class="chart-container h250">
+          <canvas id="hourlyChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PLATFORMS ─────────────────────────────────────────────────── -->
+  <section id="platforms" class="section">
+    <div class="section-title">Platform Analysis</div>
+    <div class="charts-row charts-row-2">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Platform Distribution</div>
+            <div class="chart-subtitle">Share of articles by source</div>
+          </div>
+        </div>
+        <div class="chart-container h250">
+          <canvas id="platformChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Platform × Keyword Heatmap</div>
+            <div class="chart-subtitle">Article count per cell</div>
+          </div>
+        </div>
+        <div class="heatmap-wrap" style="max-height:300px;overflow-y:auto;">
+          <table class="heatmap-table" id="heatmap-table">
+            <thead id="heatmap-head"></thead>
+            <tbody id="heatmap-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── KEYWORDS ──────────────────────────────────────────────────── -->
+  <section id="keywords" class="section">
+    <div class="section-title">Keyword Breakdown</div>
+    <div class="charts-row charts-row-2">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Articles per Keyword</div>
+            <div class="chart-subtitle">Total count by topic</div>
+          </div>
+        </div>
+        <div class="chart-container h250">
+          <canvas id="kwDistChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card" style="display:flex;flex-direction:column;justify-content:center;padding:28px;">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:16px;text-transform:uppercase;letter-spacing:.1em;font-family:var(--font-mono);">
+          Tracked Keywords
+        </div>
+        <div id="keyword-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ARTICLES TABLE ─────────────────────────────────────────────── -->
+  <section id="articles" class="section">
+    <div class="section-title">Recent Articles</div>
+    <div class="table-card">
+      <div class="table-toolbar">
+        <h3>📰 All Articles</h3>
+        <input type="text"   class="search-input"   id="search-input"   placeholder="Search titles…" oninput="filterTable()">
+        <select class="filter-select" id="filter-platform" onchange="filterTable()">
+          <option value="">All Platforms</option>
+        </select>
+        <select class="filter-select" id="filter-keyword" onchange="filterTable()">
+          <option value="">All Keywords</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table id="articles-table">
+          <thead>
+            <tr>
+              <th onclick="sortTable(0)">Title ↕</th>
+              <th onclick="sortTable(1)">Source ↕</th>
+              <th onclick="sortTable(2)">Platform ↕</th>
+              <th onclick="sortTable(3)">Keyword ↕</th>
+              <th onclick="sortTable(4)">Published ↕</th>
+            </tr>
+          </thead>
+          <tbody id="articles-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="table-footer">
+        <span id="table-count">0 articles</span>
+        <span style="color:var(--muted)">Auto-refreshes every 5 min</span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+
+<!-- ── SCRIPTS ────────────────────────────────────────────────────────── -->
+<script>
+// ── GLOBALS ───────────────────────────────────────────────────────────
+let DATA          = null;
+let trendChart    = null;
+let kwTrendChart  = null;
+let hourlyChart   = null;
+let platformChart = null;
+let kwDistChart   = null;
+let currentPeriod = 'daily';
+
+const COLORS = ["#6366f1","#06b6d4","#f59e0b","#10b981","#ef4444","#8b5cf6","#ec4899","#14b8a6"];
+
+// ── CHART DEFAULTS ─────────────────────────────────────────────────────
+Chart.defaults.color = '#64748b';
+Chart.defaults.borderColor = '#1e2d45';
+Chart.defaults.font.family = "'Space Mono', monospace";
+Chart.defaults.font.size   = 11;
+
+function chartDefaults(type) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: type !== 'bar',
+        labels: { boxWidth: 10, padding: 14 }
+      },
+      tooltip: {
+        backgroundColor: '#111827',
+        borderColor: '#1e2d45',
+        borderWidth: 1,
+        padding: 10,
+        titleFont: { family: "'Syne', sans-serif", weight: '700' }
+      }
+    },
+    scales: type === 'pie' || type === 'doughnut' ? {} : {
+      x: { grid: { color: 'rgba(30,45,69,0.4)' }, ticks: { maxRotation: 45 } },
+      y: { grid: { color: 'rgba(30,45,69,0.4)' }, beginAtZero: true }
+    }
+  };
+}
+
+// ── FETCH DATA ─────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const res  = await fetch('/api/analytics');
+    DATA       = await res.json();
+    document.getElementById('loading-overlay').classList.add('hidden');
+    renderAll();
+  } catch(e) {
+    document.querySelector('.loading-text').textContent = 'Error loading data. Retrying…';
+    setTimeout(loadData, 3000);
+  }
+}
+
+function renderAll() {
+  renderKPIs();
+  renderStats();
+  renderTrendChart();
+  renderKwTrendChart();
+  renderHourlyChart();
+  renderPlatformChart();
+  renderHeatmap();
+  renderKwDistChart();
+  renderKeywordList();
+  renderTable();
+  document.getElementById('last-updated').textContent =
+    'Updated: ' + new Date().toLocaleTimeString();
+}
+
+// ── KPIs ───────────────────────────────────────────────────────────────
+function renderKPIs() {
+  const s = DATA.summary;
+  document.getElementById('kpi-total').textContent    = s.total_posts.toLocaleString();
+  document.getElementById('kpi-today').textContent    = s.today_count.toLocaleString();
+  document.getElementById('kpi-week').textContent     = s.this_week_count.toLocaleString();
+  document.getElementById('kpi-keywords').textContent = s.total_keywords;
+  document.getElementById('kpi-platforms').textContent= s.total_platforms;
+
+  const ns = DATA.numpy_stats;
+  document.getElementById('kpi-avg').textContent      = ns.mean_daily || '—';
+  document.getElementById('last-updated').textContent = 'Last: ' + (s.latest_fetch || 'N/A');
+}
+
+// ── NUMPY STATS ────────────────────────────────────────────────────────
+function renderStats() {
+  const ns = DATA.numpy_stats;
+  if (!ns || !ns.mean_daily) return;
+  document.getElementById('stats-row').style.display  = 'flex';
+  document.getElementById('stat-mean').textContent    = ns.mean_daily;
+  document.getElementById('stat-std').textContent     = ns.std_daily;
+  document.getElementById('stat-median').textContent  = ns.median_daily;
+  document.getElementById('stat-max').textContent     = ns.max_daily;
+  document.getElementById('stat-p75').textContent     = ns.percentile_75;
+  document.getElementById('stat-p90').textContent     = ns.percentile_90;
+}
+
+// ── TREND CHART (daily/weekly/monthly/yearly) ──────────────────────────
+function renderTrendChart() {
+  const key = currentPeriod + '_trend';
+  const d   = DATA[key];
+  if (trendChart) { trendChart.destroy(); }
+
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  const opts = chartDefaults('line');
+  opts.plugins.legend.display = false;
+  trendChart = new Chart(ctx, { type: 'line', data: d, options: opts });
+}
+
+function switchPeriod(period, el) {
+  currentPeriod = period;
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderTrendChart();
+}
+
+// ── KEYWORD TREND (multi-line) ─────────────────────────────────────────
+function renderKwTrendChart() {
+  const d = DATA.keyword_trends;
+  if (kwTrendChart) kwTrendChart.destroy();
+  const ctx = document.getElementById('kwTrendChart').getContext('2d');
+  kwTrendChart = new Chart(ctx, {
+    type: 'line', data: d, options: chartDefaults('line')
+  });
+}
+
+// ── HOURLY ─────────────────────────────────────────────────────────────
+function renderHourlyChart() {
+  const d = DATA.hourly_dist;
+  if (hourlyChart) hourlyChart.destroy();
+  const ctx = document.getElementById('hourlyChart').getContext('2d');
+  const opts = chartDefaults('bar');
+  opts.plugins.legend.display = false;
+  hourlyChart = new Chart(ctx, { type: 'bar', data: d, options: opts });
+}
+
+// ── PLATFORM DOUGHNUT ──────────────────────────────────────────────────
+function renderPlatformChart() {
+  const d = DATA.platform_dist;
+  if (platformChart) platformChart.destroy();
+  const ctx = document.getElementById('platformChart').getContext('2d');
+  platformChart = new Chart(ctx, {
+    type: 'doughnut', data: d,
+    options: { ...chartDefaults('doughnut'), cutout: '62%' }
+  });
+
+  // populate filter dropdown
+  const sel = document.getElementById('filter-platform');
+  sel.innerHTML = '<option value="">All Platforms</option>';
+  d.labels.forEach(l => {
+    const o = document.createElement('option');
+    o.value = l; o.textContent = l;
+    sel.appendChild(o);
+  });
+}
+
+// ── HEATMAP ────────────────────────────────────────────────────────────
+function renderHeatmap() {
+  const h = DATA.heatmap;
+  if (!h.keywords.length) return;
+
+  // Find max for color scale
+  const allVals = h.matrix.flat();
+  const maxVal  = Math.max(...allVals, 1);
+
+  const head = document.getElementById('heatmap-head');
+  head.innerHTML = '<tr><th>Keyword</th>' +
+    h.platforms.map(p => `<th>${p}</th>`).join('') + '</tr>';
+
+  const body = document.getElementById('heatmap-body');
+  body.innerHTML = h.keywords.map((kw, i) => {
+    const cells = h.platforms.map((_, j) => {
+      const val   = h.matrix[i][j];
+      const alpha = (val / maxVal) * 0.85 + 0.1;
+      const bg    = `rgba(99,102,241,${alpha})`;
+      const fg    = alpha > 0.5 ? '#fff' : '#94a3b8';
+      return `<td style="background:${bg};color:${fg}">${val}</td>`;
+    }).join('');
+    return `<tr><td style="text-align:left;color:var(--text);font-weight:600">${kw}</td>${cells}</tr>`;
+  }).join('');
+}
+
+// ── KEYWORD DISTRIBUTION ───────────────────────────────────────────────
+function renderKwDistChart() {
+  const d = DATA.keyword_dist;
+  if (kwDistChart) kwDistChart.destroy();
+  const ctx = document.getElementById('kwDistChart').getContext('2d');
+  const opts = chartDefaults('bar');
+  opts.indexAxis = 'y';
+  opts.plugins.legend.display = false;
+  kwDistChart = new Chart(ctx, { type: 'bar', data: d, options: opts });
+}
+
+// ── KEYWORD LIST ───────────────────────────────────────────────────────
+function renderKeywordList() {
+  const kd   = DATA.keyword_dist;
+  const total = kd.datasets[0].data.reduce((a,b) => a+b, 0) || 1;
+  const el   = document.getElementById('keyword-list');
+  el.innerHTML = kd.labels.map((kw, i) => {
+    const count = kd.datasets[0].data[i];
+    const pct   = ((count / total) * 100).toFixed(1);
+    const color = COLORS[i % COLORS.length];
+    return `
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></div>
+        <div style="flex:1;font-size:12px;font-weight:600">${kw}</div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">${count}</div>
+        <div style="width:80px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);width:36px;text-align:right">${pct}%</div>
+      </div>`;
+  }).join('');
+
+  // keyword filter
+  const sel = document.getElementById('filter-keyword');
+  sel.innerHTML = '<option value="">All Keywords</option>';
+  kd.labels.forEach(l => {
+    const o = document.createElement('option');
+    o.value = l; o.textContent = l;
+    sel.appendChild(o);
+  });
+}
+
+// ── ARTICLES TABLE ─────────────────────────────────────────────────────
+let allArticles = [];
+let sortDir = {};
+
+function renderTable() {
+  allArticles = DATA.recent_articles;
+  displayTable(allArticles);
+}
+
+function displayTable(rows) {
+  const tbody = document.getElementById('articles-tbody');
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td class="title-cell">
+        <a href="${escHtml(r.url)}" target="_blank" title="${escHtml(r.title)}">
+          ${escHtml(r.title.substring(0, 90))}${r.title.length > 90 ? '…' : ''}
+        </a>
+      </td>
+      <td style="color:var(--muted);white-space:nowrap">${escHtml(r.source_name || '')}</td>
+      <td><span class="tag tag-platform">${escHtml(r.platform)}</span></td>
+      <td><span class="tag tag-keyword">${escHtml(r.keyword)}</span></td>
+      <td style="white-space:nowrap;font-family:var(--font-mono);font-size:11px;color:var(--muted)">${r.published_at}</td>
+    </tr>
+  `).join('');
+  document.getElementById('table-count').textContent = rows.length + ' articles shown';
+}
+
+function filterTable() {
+  const q  = document.getElementById('search-input').value.toLowerCase();
+  const pl = document.getElementById('filter-platform').value;
+  const kw = document.getElementById('filter-keyword').value;
+  const filtered = allArticles.filter(r => {
+    const matchQ  = !q  || r.title.toLowerCase().includes(q);
+    const matchPl = !pl || r.platform === pl;
+    const matchKw = !kw || r.keyword  === kw;
+    return matchQ && matchPl && matchKw;
+  });
+  displayTable(filtered);
+}
+
+function sortTable(col) {
+  sortDir[col] = !sortDir[col];
+  const keys = ['title','source_name','platform','keyword','published_at'];
+  const k = keys[col];
+  const dir = sortDir[col] ? 1 : -1;
+  const sorted = [...allArticles].sort((a,b) =>
+    String(a[k] || '').localeCompare(String(b[k] || '')) * dir
+  );
+  displayTable(sorted);
+}
+
+function escHtml(str) {
+  return String(str || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── MANUAL FETCH ───────────────────────────────────────────────────────
+async function triggerFetch() {
+  const btn = document.getElementById('fetch-btn');
+  btn.classList.add('loading');
+  btn.textContent = '⟳ Fetching…';
+  try {
+    await fetch('/api/fetch', { method: 'POST' });
+    showToast('✓', 'Data fetch started! Refresh in ~1 minute.');
+  } catch(e) {
+    showToast('✗', 'Fetch failed. Check server logs.');
+  }
+  setTimeout(() => {
+    btn.classList.remove('loading');
+    btn.innerHTML = '<span>⟳</span> Fetch Now';
+  }, 2000);
+}
+
+// ── TOAST ──────────────────────────────────────────────────────────────
+function showToast(icon, msg) {
+  document.getElementById('toast-icon').textContent = icon;
+  document.getElementById('toast-msg').textContent  = msg;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ── AUTO REFRESH ───────────────────────────────────────────────────────
+setInterval(loadData, 5 * 60 * 1000);  // every 5 min
+
+// ── NAV HIGHLIGHT ──────────────────────────────────────────────────────
+function scrollTo(hash) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────
+loadData();
+</script>
+
+</body>
+</html>
