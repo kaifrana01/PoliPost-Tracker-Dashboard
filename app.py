@@ -1,14 +1,3 @@
-"""
-app.py
-======
-Main Flask application for the News Intelligence Dashboard.
-
-Run:
-    python app.py
-    
-Then visit: http://127.0.0.1:5000
-"""
-
 import threading
 import schedule
 import time
@@ -19,11 +8,6 @@ from analytics import get_all_analytics
 from data_fetcher import fetch_all, KEYWORDS, PLATFORMS
 
 app = Flask(__name__)
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# ROUTES
-# ──────────────────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def dashboard():
@@ -60,9 +44,7 @@ def api_platforms():
     return jsonify({"platforms": list(PLATFORMS.keys())})
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# BACKGROUND SCHEDULER  – auto-fetch every 6 hours
-# ──────────────────────────────────────────────────────────────────────────────
+    # BACKGROUND SCHEDULER  – auto-fetch every 6 hours
 
 def _scheduled_fetch():
     print("[SCHEDULER] Starting scheduled fetch …")
@@ -81,11 +63,6 @@ def start_scheduler():
     t = threading.Thread(target=_run_scheduler, daemon=True)
     t.start()
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# STARTUP
-# ──────────────────────────────────────────────────────────────────────────────
-
 if __name__ == "__main__":
     init_db()
 
@@ -100,4 +77,4 @@ if __name__ == "__main__":
     print("  News Intelligence Dashboard")
     print("  Open: http://127.0.0.1:5000")
     print("="*60 + "\n")
-    app.run(debug=True)
+    app.run(debug=True, port=120)
